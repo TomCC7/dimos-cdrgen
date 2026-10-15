@@ -1,0 +1,10 @@
+build/
+dist/
+.venv/
+*.egg-info/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dimos_cdrgen/.upstream/

@@ -1,0 +1,6 @@
+graft dimos_cdrgen/.upstream/rosidl_adapter
+include dimos_cdrgen/parser-source.json
+include dimos_cdrgen/test-sources.json
+include dimos_cdrgen/test_*.py dimos_cdrgen/prepare_test_inputs.py
+graft examples
+global-exclude __pycache__ *.pyc
