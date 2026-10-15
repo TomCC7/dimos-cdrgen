@@ -33,28 +33,43 @@ model overrides, subagent setup, or global plugin installation are required.
 Read README.md for the existing build and verification commands. Do not invent
 commands or treat documentation-only changes as requiring native rebuilds.
 
+## pstack workflow
+
+`poteto-mode` and its referenced skills are available in `.agents/skills/`.
+Use the standalone skill's Codex mappings. Installed helpers are source files,
+not services: installation does not run them, install Bun dependencies, poll CI,
+create automations, publish packages, or grant permissions for external actions.
+Session instructions and explicit approval boundaries take precedence.
+
+Use `deslop` for a behavior-preserving code diff review, and `technical-writing`
+with `unslop` for documentation. Use `verify-dimos-cdrgen` for this library's
+actual verification recipes. `create-verification-skill` and
+`maintain-verification-skill` support creating and maintaining that feature map.
+
+`setup-pstack` detects model choices and asks for confirmation before writing
+user-level settings. For Codex its destination is `~/.agents/pstack-models.md`.
+Installing the skill does not create this file or approve its model choices.
+Do not silently substitute pstack's default model names when unavailable.
+
 ## Upstream provenance
 
-These six SKILL.md files are unchanged copies from the user-selected standalone
-[backnotprop/pstack](https://github.com/backnotprop/pstack/tree/1f0f9c3bac03c4297f6fc8f7644fa412eda57085),
-pinned to `1f0f9c3bac03c4297f6fc8f7644fa412eda57085`.
-The repository is a standalone mirror of Lauren Tan's pstack with changes for
-Codex and other agents. The four existing principles also match this revision,
-so their files remain unchanged. The MIT license is retained at
-[.agents/skills/LICENSE.pstack](.agents/skills/LICENSE.pstack).
+The standalone skills are unchanged copies from
+[backnotprop/pstack@1f0f9c3](https://github.com/backnotprop/pstack/tree/1f0f9c3bac03c4297f6fc8f7644fa412eda57085).
+[The source manifest](.agents/pstack-source.json) records the selected skills,
+pinned revision, and every copied file's SHA256. The selection includes
+`poteto-mode`, all its principles, referenced workflows, setup, and verification
+maintenance. The upstream MIT license remains in
+[LICENSE.pstack](.agents/skills/LICENSE.pstack).
 
-The standalone README documents installation through `npx skills add
-backnotprop/pstack`. The skills CLI supports `--agent codex`, `--skill`, and
-`--copy`; its project-local Codex destination is `.agents/skills/`.
-This checkout contains reviewed, pinned file copies in that documented location.
-No remote installer was executed and no CLI-managed lockfile is claimed.
+`deslop` comes from the separate upstream package that pstack references:
+[cursor-team-kit](https://github.com/cursor/plugins/tree/6ce45c59b9301a638c1fe1a7b8dc2a82b650898f/cursor-team-kit).
+Its unchanged skill and separate
+[MIT license](.agents/skills/LICENSE.cursor-team-kit) are retained locally.
+`verify-dimos-cdrgen` is project-specific and is not an upstream file.
 
-Six upstream skills and one project-specific verifier are installed. `technical-writing`'s `unslop`
-dependency is included. These skills need no model setup. The standalone
-`setup-pstack` writes `~/.agents/pstack-models.md` for Codex, so it is outside
-this repo-local setup and has not been run.
-
-To update, compare these six files against a reviewed commit of
-`backnotprop/pstack`, preserve its license, update the pin above, and inspect
-the diff. Use the standalone source rather than copying Cursor's original
-over it, which could discard changes made for other agents.
+Files use the documented Codex project location, `.agents/skills/`. No remote
+installer was executed and no skills-CLI lockfile is claimed. To update, review
+the pinned standalone source, preserve licenses and local verification recipes,
+compare copied hashes, and update the manifest. Do not overwrite standalone
+changes with Cursor's original versions. Do not activate copied automation or
+shipping helpers as part of an update.
