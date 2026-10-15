@@ -11,6 +11,8 @@ The [documentation source](docs/index.md) includes installation, Python, C++, an
 Rust quickstarts, dependency reuse, and CLI/API references. To build and preview
 the MkDocs site locally, follow [the docs maintenance guide](docs/contributing-docs.md).
 The site build uses its own locked environment and does not install this package.
+The [publishing guide](docs/publishing.md) covers local distribution validation,
+the default GitHub dry-run, and approval of registry ownership and OIDC setup.
 
 ## Install the tool
 
@@ -201,6 +203,11 @@ and runtime dependency wheels. The optional joint DimOS adapter test also needs
 `DIMOS_BUILD_CONFIG_SOURCE`; it is not required to use the standalone library.
 
 ## Prepare a release; do not publish yet
+
+Use the [publishing guide](docs/publishing.md) for the locked build environment,
+standalone consumer checks, and manual `dry-run`, `testpypi`, or `pypi` workflow.
+The default `dry-run` never uploads. A real upload requires an approved registry
+account and project, Trusted Publisher configuration, and a matching version tag.
 
 1. Confirm the authorized registry account and publishing destination.
    The current `0.1.0` metadata is a development candidate, not an existing release.

@@ -60,7 +60,8 @@ only after the build succeeds. The workflow does not create a PyPI release.
 
 The configured site URL is `https://tomcc7.github.io/dimos-cdrgen/`.
 Treat it as the intended destination until a successful deployment and a live
-page check confirm it.
+page check confirm it. The deployed `revision.txt` records the source commit
+so a page check can confirm the expected revision without polling CI.
 
 These settings follow the [MkDocs validation documentation](https://www.mkdocs.org/user-guide/configuration/#validation)
 and [GitHub's Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).

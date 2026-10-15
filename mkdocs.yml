@@ -24,6 +24,7 @@ nav:
       - Python API: reference/api.md
       - Compatibility: reference/compatibility.md
   - Maintain the documentation: contributing-docs.md
+  - Validate and publish a release: publishing.md
 validation:
   nav:
     omitted_files: warn

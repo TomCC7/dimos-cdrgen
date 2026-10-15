@@ -1,0 +1,121 @@
+name: Publish distributions
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: Build only, or explicitly upload to one registry
+        type: choice
+        required: true
+        default: dry-run
+        options:
+          - dry-run
+          - testpypi
+          - pypi
+
+permissions: {}
+
+concurrency:
+  group: publish-${{ inputs.destination }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Validate publication request
+        env:
+          DESTINATION: ${{ inputs.destination }}
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import tomllib
+
+          destination = os.environ['DESTINATION']
+          assert destination in {'dry-run', 'testpypi', 'pypi'}, 'Unknown destination'
+          if destination != 'dry-run':
+              assert os.environ['REPOSITORY'] == 'TomCC7/dimos-cdrgen', 'Unexpected publishing repository'
+              version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+              assert os.environ['REF'] == f'refs/tags/v{version}', 'Select the tag v<package-version> for uploads'
+          PY
+      - name: Install locked build and validation dependencies
+        run: python -m pip install --require-hashes -r requirements/publish.txt
+      - name: Prepare dependency wheels for offline consumer checks
+        run: python -m pip wheel --require-hashes --no-build-isolation --wheel-dir build/publish-wheelhouse -r requirements/publish.txt
+      - name: Prepare verified upstream parser
+        run: python dimos_cdrgen/prepare_parser.py
+      - name: Build wheel and source archive
+        run: python -m build --no-isolation
+      - name: Validate distributions and installed standalone consumers
+        run: python .github/scripts/validate_distributions.py --wheelhouse build/publish-wheelhouse
+      - name: Record artifact hashes and destination
+        env:
+          DESTINATION: ${{ inputs.destination }}
+        run: |
+          sha256sum dist/* | tee build/distributions.sha256
+          {
+            echo '### Distribution validation passed'
+            echo "Destination selected: $DESTINATION"
+            echo 'Build validation alone does not confirm a registry upload.'
+            echo '```text'
+            cat build/distributions.sha256
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Store validated distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-testpypi:
+    if: inputs.destination == 'testpypi' && github.repository == 'TomCC7/dimos-cdrgen' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/dimos-cdrgen
+    steps:
+      - name: Download validated distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: distributions
+          path: dist/
+      - name: Upload to TestPyPI with OIDC
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    if: inputs.destination == 'pypi' && github.repository == 'TomCC7/dimos-cdrgen' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dimos-cdrgen
+    steps:
+      - name: Download validated distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: distributions
+          path: dist/
+      - name: Upload to PyPI with OIDC
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
