@@ -5,6 +5,13 @@ not depend on the DimOS runtime, a ROS installation, or a running robot.
 The package is named `dimos-cdrgen` (import `dimos_cdrgen`). No registry release
 is assumed by these instructions.
 
+## Documentation
+
+The [documentation source](docs/index.md) includes installation, Python, C++, and
+Rust quickstarts, dependency reuse, and CLI/API references. To build and preview
+the MkDocs site locally, follow [the docs maintenance guide](docs/contributing-docs.md).
+The site build uses its own locked environment and does not install this package.
+
 ## Install the tool
 
 From this package directory, prepare the pinned upstream parser and build local

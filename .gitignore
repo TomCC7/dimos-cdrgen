@@ -1,6 +1,8 @@
 build/
 dist/
 .venv/
+.venv-docs/
+site/
 *.egg-info/
 __pycache__/
 *.pyc

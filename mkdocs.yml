@@ -1,0 +1,36 @@
+site_name: dimos-cdrgen
+site_description: Message generation and CDR codecs for Python, C++, and Rust.
+site_url: https://tomcc7.github.io/dimos-cdrgen/
+repo_url: https://github.com/TomCC7/dimos-cdrgen
+edit_uri: edit/main/docs/
+theme:
+  name: mkdocs
+  color_mode: auto
+  user_color_mode_toggle: true
+  navigation_depth: 2
+  analytics: null
+nav:
+  - Overview: index.md
+  - Install the generator: install.md
+  - Quickstarts:
+      - Python: quickstarts/python.md
+      - C++: quickstarts/cpp.md
+      - Rust: quickstarts/rust.md
+  - Reuse dependency types: guides/dependencies.md
+  - Reference:
+      - Message inputs: reference/inputs.md
+      - Generated artifacts: reference/artifacts.md
+      - CLI: reference/cli.md
+      - Python API: reference/api.md
+      - Compatibility: reference/compatibility.md
+  - Maintain the documentation: contributing-docs.md
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+markdown_extensions:
+  - toc:
+      permalink: true

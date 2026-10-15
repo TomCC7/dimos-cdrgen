@@ -1,0 +1,2 @@
+# Documentation only. Keep runtime dependencies in pyproject.toml.
+mkdocs==1.6.1
