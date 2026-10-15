@@ -1,8 +1,8 @@
 # Maintain the documentation
 
 Edit Markdown in `docs/` and keep every page in `mkdocs.yml` navigation.
-The site uses MkDocs and its bundled theme. It has no custom plugins or frontend
-build. The docs environment is separate from the generator's runtime dependencies.
+The site uses Material for MkDocs with a small local stylesheet, system fonts,
+and light and dark palettes. It needs no separate frontend build. The docs environment is separate from the generator's runtime dependencies.
 
 ## Build and preview locally
 

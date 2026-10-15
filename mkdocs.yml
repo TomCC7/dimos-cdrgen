@@ -4,11 +4,39 @@ site_url: https://tomcc7.github.io/dimos-cdrgen/
 repo_url: https://github.com/TomCC7/dimos-cdrgen
 edit_uri: edit/main/docs/
 theme:
-  name: mkdocs
-  color_mode: auto
-  user_color_mode_toggle: true
-  navigation_depth: 2
-  analytics: null
+  name: material
+  font: false
+  icon:
+    logo: material/code-braces
+  palette:
+    - media: '(prefers-color-scheme)'
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - toc.follow
 nav:
   - Overview: index.md
   - Install the generator: install.md
@@ -25,6 +53,10 @@ nav:
       - Compatibility: reference/compatibility.md
   - Maintain the documentation: contributing-docs.md
   - Validate and publish a release: publishing.md
+plugins:
+  - search
+extra_css:
+  - stylesheets/extra.css
 validation:
   nav:
     omitted_files: warn
@@ -33,5 +65,11 @@ validation:
     absolute_links: warn
     unrecognized_links: warn
 markdown_extensions:
+  - attr_list
+  - md_in_html
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
   - toc:
       permalink: true

@@ -1,12 +1,42 @@
+<div class="cdrgen-lead" markdown>
+
 # Message generation and CDR
 
-`dimos-cdrgen` turns ROS 2 `.msg` definitions into message packages for Python,
-C++, and Rust. It supplies CDR codecs without a ROS installation, the DimOS
-runtime, or a running robot.
+Generate Python, C++, and Rust message packages from ROS 2 `.msg` definitions.
+Encode and decode CDR without a ROS installation, the DimOS runtime, or a running
+robot.
 
-Start with [installation](install.md), then [generate and use a Python
-message](quickstarts/python.md). The [C++](quickstarts/cpp.md) and
-[Rust](quickstarts/rust.md) quickstarts use that same message project.
+[Install the generator](install.md){ .md-button .md-button--primary }
+[Read the compatibility limits](reference/compatibility.md){ .md-button }
+
+</div>
+
+## Start with a message
+
+```text title="interfaces/example_msgs/msg/Reading.msg"
+int32 sequence
+float64 value
+```
+
+The [Python quickstart](quickstarts/python.md) generates this message and checks
+a CDR round trip. The C++ and Rust quickstarts use the same project and fields.
+
+<div class="grid cards cdrgen-languages" markdown>
+
+-   ### [Python](quickstarts/python.md)
+
+    Install the generated package. Import typed messages and use the Python CDR
+    codec.
+
+-   ### [C++](quickstarts/cpp.md)
+
+    Prepare native libraries. Build a CMake consumer with the supplied CDR header.
+
+-   ### [Rust](quickstarts/rust.md)
+
+    Compile the generated crate with Cargo. Encode and decode with `re_cdr`.
+
+</div>
 
 ## Generation and compilation
 
