@@ -7,6 +7,9 @@ transport dependencies outside this library.
 
 Read the relevant skill before its matching task:
 
+- [verify-dimos-cdrgen](.agents/skills/verify-dimos-cdrgen/SKILL.md): run the
+  project-specific fast or full verification recipes after affected changes.
+
 - [Technical writing](.agents/skills/technical-writing/SKILL.md) and its required
   [unslop](.agents/skills/unslop/SKILL.md) companion: README, API documentation,
   tutorials, PR descriptions, and commit messages. Use real commands and short,
@@ -46,7 +49,7 @@ backnotprop/pstack`. The skills CLI supports `--agent codex`, `--skill`, and
 This checkout contains reviewed, pinned file copies in that documented location.
 No remote installer was executed and no CLI-managed lockfile is claimed.
 
-Only the six indexed skills are installed. `technical-writing`'s `unslop`
+Six upstream skills and one project-specific verifier are installed. `technical-writing`'s `unslop`
 dependency is included. These skills need no model setup. The standalone
 `setup-pstack` writes `~/.agents/pstack-models.md` for Codex, so it is outside
 this repo-local setup and has not been run.
