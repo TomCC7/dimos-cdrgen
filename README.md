@@ -166,6 +166,24 @@ extension or publish a crate.
 ## Dependency ownership and DimOS integration
 
 Standard ROS message definitions are a separate catalog, not bundled here.
+Set `python-module` when generated types belong inside an existing Python
+package. Keep `module` as the CMake/Cargo identity:
+
+```toml
+[tool.dimos.messages]
+module = "robot_messages"
+python-module = "robot.messages"
+```
+
+This generates `from robot.messages.example_msgs.msg import Reading` while
+retaining native package names derived from `robot_messages`. The Python
+distribution name comes from `[project].name`. A consuming source project uses
+`"robot.messages" = "0.1.0"` in its message dependency table and declares the
+owning distribution in its Python build/runtime dependencies. Schemas and
+provider metadata use `robot.messages_schemas`, so provider discovery does not
+import the generated value modules recursively. Nested namespaces require
+`dimos-cdrgen==0.1.1` or later in build and runtime dependencies.
+
 Declare an installed message package in `tool.dimos.messages.dependencies` with
 its exact module/version. The generator imports its Python types, links its C++
 declarations, and reuses its Rust crate types. It rejects conflicting ownership,

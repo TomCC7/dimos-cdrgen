@@ -69,7 +69,7 @@ python -m pytest dimos_cdrgen/test_generation_transaction.py dimos_cdrgen/test_s
   --junitxml="$RUN_DIR/evidence/fast.xml" 2>&1 | tee "$RUN_DIR/evidence/fast.log"
 ```
 
-Require three passing tests. This covers configuration errors, explicit CLI
+Require eight passing tests. This covers configuration errors, explicit CLI
 regeneration after a rename, and preservation of output after failed generation.
 
 Full checks are the installation and native recipes in the feature map. Run

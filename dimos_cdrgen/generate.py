@@ -38,6 +38,8 @@ def generate(
     names: list[str] | None = None,
     module: str = "dimos_generated",
     *,
+    python_module: str | None = None,
+    distribution: str | None = None,
     installed: bool = False,
     version: str = "0.1.0",
     dependencies: tuple[Dependency, ...] = (),
@@ -55,6 +57,8 @@ def generate(
             stage,
             names,
             module,
+            python_module=python_module or module,
+            distribution=distribution or module.replace("_", "-"),
             installed=installed,
             version=version,
             dependencies=dependencies,
@@ -80,6 +84,8 @@ def _generate(
     names: list[str] | None,
     module: str,
     *,
+    python_module: str,
+    distribution: str,
     installed: bool,
     version: str,
     dependencies: tuple[Dependency, ...],
@@ -89,6 +95,12 @@ def _generate(
 ) -> tuple[str, ...]:
     if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or keyword.iskeyword(module):
         raise ValueError(f"Invalid Python package module name: {module}")
+    if not all(
+        part.isidentifier() and not keyword.iskeyword(part) for part in python_module.split(".")
+    ):
+        raise ValueError(f"Invalid Python namespace: {python_module}")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", distribution):
+        raise ValueError(f"Invalid distribution name: {distribution}")
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("Package version must have the form major.minor.patch")
     if not languages or set(languages) - {"python", "cpp", "rust"}:
@@ -146,6 +158,11 @@ def _generate(
         "format": 1,
         "abi": ABI,
         "module": module,
+        "python_module": python_module,
+        "distribution": distribution,
+        "python_dependencies": {
+            dep.module: dep.python_module or dep.module for dep in dependencies
+        },
         "version": version,
         "shared": shared,
         "dependencies": {dep.module: dep.version for dep in dependencies},
@@ -165,11 +182,11 @@ def _generate(
     if "python" in languages:
         for name, content in python.generate(
             owned,
-            module,
+            python_module,
             version=version,
-            imports={name: owner.module for name, owner in owners.items()},
+            imports={name: owner.python_module or owner.module for name, owner in owners.items()},
         ).items():
-            path = output / "python" / module / name
+            path = output / "python" / python_module.replace(".", "/") / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
     if "cpp" in languages:
@@ -183,7 +200,10 @@ def _generate(
         crate.mkdir()
         shutil.copyfile(output / "schemas.json", crate / "schemas.json")
         rust.write_crate(
-            crate, owned, definitions, {name: owner.crate for name, owner in owners.items()}
+            crate,
+            owned,
+            definitions,
+            {name: owner.crate for name, owner in owners.items()},
         )
         (crate / "Cargo.toml").write_text(
             f'[package]\nname = "{module.replace("_", "-")}-messages"\nversion = "{version}"\nedition = "2024"\n'
@@ -198,7 +218,12 @@ def _generate(
         )
     if "python" in languages:
         python.write_distribution(
-            output, module, tuple(msg.name for msg in owned), version, dependencies=dependencies
+            output,
+            python_module,
+            tuple(msg.name for msg in owned),
+            version,
+            dependencies=dependencies,
+            distribution=distribution,
         )
     return tuple(msg.name for msg in messages)
 
@@ -207,13 +232,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-root", type=Path, action="append", default=[])
     parser.add_argument(
-        "--type", dest="names", action="append", help="Root package/msg/Type (repeatable)"
+        "--type",
+        dest="names",
+        action="append",
+        help="Root package/msg/Type (repeatable)",
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--python-module", default="dimos_generated")
     parser.add_argument("--version", default="0.1.0")
     parser.add_argument(
-        "--package", action="store_true", help="Emit a reproducible Python wheel/sdist project"
+        "--package",
+        action="store_true",
+        help="Emit a reproducible Python wheel/sdist project",
     )
     args = parser.parse_args()
     try:

@@ -253,7 +253,8 @@ def validate_cpp_closure(root: Path) -> None:
             )
         active.add(name)
         for dependency, version in sorted(manifest["dependencies"].items()):
-            spec = find_spec(dependency + "_schemas")
+            python_module = manifest.get("python_dependencies", {}).get(dependency, dependency)
+            spec = find_spec(python_module + "_schemas")
             if spec is None or spec.origin is None:
                 raise ValueError(f"Missing installed message dependency: {dependency}")
             found = visit(Path(spec.origin).parent / "package")
@@ -313,7 +314,8 @@ def prepare_cpp(
         active.add(name)
         dependencies = []
         for dependency, version in sorted(manifest["dependencies"].items()):
-            spec = find_spec(dependency + "_schemas")
+            python_module = manifest.get("python_dependencies", {}).get(dependency, dependency)
+            spec = find_spec(python_module + "_schemas")
             if spec is None or spec.origin is None:
                 raise ValueError(f"Missing installed message dependency: {dependency}")
             dependency_root = Path(spec.origin).parent / "package"

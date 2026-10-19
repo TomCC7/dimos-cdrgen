@@ -41,19 +41,30 @@ def restore_reference_types_module():
             sys.modules["rosbags.usertypes"] = previous
 
 
-def test_separate_packages_share_types_and_exchange_cdr(tmp_path, monkeypatch):
+@pytest.mark.parametrize("nested", [False, True], ids=["flat", "nested"])
+def test_separate_packages_share_types_and_exchange_cdr(tmp_path, monkeypatch, nested):
     if os.environ.get("DIMOS_NATIVE_ACCEPTANCE") != "1":
         pytest.skip("Set DIMOS_NATIVE_ACCEPTANCE=1 to run the compiled ownership contract")
     source = tmp_path / "interfaces/custom_msgs/msg/Reading.msg"
     source.parent.mkdir(parents=True)
     source.write_text("std_msgs/Header header\nfloat64 value\n")
     base, custom = tmp_path / "base", tmp_path / "custom"
-    generate([TEST_INPUTS], base, ["std_msgs/msg/Header"], "ownership_base", shared=True)
+    base_python = "robot.base" if nested else "ownership_base"
+    custom_python = "robot.custom" if nested else "ownership_custom"
+    generate(
+        [TEST_INPUTS],
+        base,
+        ["std_msgs/msg/Header"],
+        "ownership_base",
+        shared=True,
+        python_module=base_python,
+    )
     generate(
         [source.parents[2]],
         custom,
         ["custom_msgs/msg/Reading"],
         "ownership_custom",
+        python_module=custom_python,
         dependencies=(Dependency.load(base),),
         shared=True,
     )
@@ -97,6 +108,9 @@ msg.header = h
 assert type(registry.decode(registry.encode(msg), Reading).header) is Header
 Path('input.cdr').write_bytes(registry.encode(msg))
 """
+    python = python.replace("ownership_base.", base_python + ".").replace(
+        "ownership_custom.", custom_python + "."
+    )
     subprocess.run([sys.executable, "-c", bootstrap + python], env=env, cwd=tmp_path, check=True)
     consumer = tmp_path / "consumer"
     consumer.mkdir()
@@ -186,7 +200,7 @@ assert (msg.value, msg.header.frame_id, msg.header.stamp.nanosec) == (22.5, 'map
 reference = get_typestore(Stores.ROS2_JAZZY)
 reference.register(get_types_from_msg(registry.schema(Reading.__msgtype__), Reading.__msgtype__))
 assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).value == 22.5
-""",
+""".replace("ownership_base.", base_python + ".").replace("ownership_custom.", custom_python + "."),
         ],
         cwd=tmp_path,
         env=env,
@@ -194,7 +208,9 @@ assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).valu
     )
     # Public source manifests are validated before classes are exposed.
     manifest_path = base / "message-package.json"
-    installed_manifest = base / "python/ownership_base_schemas/package/message-package.json"
+    installed_manifest = (
+        base / "python" / (base_python.replace(".", "/") + "_schemas/package/message-package.json")
+    )
     original = manifest_path.read_text()
     for key, value, error in (
         ("version", "99.0.0", "Dependency version mismatch"),
@@ -220,7 +236,7 @@ assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).valu
 
     destination = os.environ.get("DIMOS_OWNERSHIP_EVIDENCE")
     if destination:
-        evidence = Path(destination)
+        evidence = Path(destination) / ("nested" if nested else "flat")
         evidence.mkdir(parents=True, exist_ok=True)
         for name in ("input.cdr", "cpp.cdr", "rust.cdr"):
             shutil.copy2(tmp_path / name, evidence / name)

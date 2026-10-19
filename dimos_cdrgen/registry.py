@@ -70,7 +70,8 @@ def _read_packages(
             raise ValueError(f"Message schema digest mismatch: {module}")
         result[module] = (manifest, schemas)
         for dependency in manifest["dependencies"]:
-            found = find_spec(dependency + "_schemas")
+            python_module = manifest.get("python_dependencies", {}).get(dependency, dependency)
+            found = find_spec(python_module + "_schemas")
             if found is None or found.origin is None:
                 raise ValueError(f"Missing installed message dependency: {dependency}")
             pending.append(Path(found.origin).parent / "package")

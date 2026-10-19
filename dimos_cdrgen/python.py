@@ -87,10 +87,11 @@ def write_distribution(
     version: str = "0.1.0",
     *,
     dependencies: tuple[Dependency, ...] = (),
+    distribution: str | None = None,
 ) -> None:
     project = output / "python"
     support = module + "_schemas"
-    package = project / support
+    package = project / support.replace(".", "/")
     package.mkdir(parents=True, exist_ok=True)
     (package / "__init__.py").write_text('"""Generated message/schema provider."""\n')
     for filename in ["schemas", "package"]:
@@ -130,21 +131,28 @@ def write_distribution(
         f"    names = {list(owned)!r}\n"
         "    return {name: getattr(getattr(values, name.split('/')[0]).msg, name.split('/')[-1]) for name in names}\n"
     )
-    requirements = ["numpy>=1.26.4", "rosbags==0.11.0", "dimos-cdrgen==0.1.0"] + [
-        dep.module.replace("_", "-") + "==" + dep.version for dep in dependencies
+    requirements = [
+        "numpy>=1.26.4",
+        "rosbags==0.11.0",
+        "dimos-cdrgen==0.1.1"
+        if "." in module or any("." in dep.python_module for dep in dependencies)
+        else "dimos-cdrgen==0.1.0",
+    ] + [
+        (dep.distribution or dep.module.replace("_", "-")) + "==" + dep.version
+        for dep in dependencies
     ]
     (project / "pyproject.toml").write_text(
         '[build-system]\nrequires = ["setuptools>=70", "wheel"]\nbuild-backend = "setuptools.build_meta"\n'
     )
     (project / "setup.py").write_text(
-        "from setuptools import find_packages, setup\n"
-        f"setup(name={module.replace('_', '-')!r}, version={version!r}, packages=find_packages(),\n"
+        "from setuptools import find_namespace_packages, setup\n"
+        f"setup(name={(distribution or module.replace('_', '-'))!r}, version={version!r}, packages=find_namespace_packages(include={[module, module + '.*', support, support + '.*']!r}),\n"
         f"      install_requires={requirements!r},\n"
         f"      package_data={{{module!r}: ['py.typed', '**/*.pyi', '*.pyi'], {support!r}: ['schemas.json', 'schemas/**/*', 'package/**/*']}},\n"
         f"      entry_points={{'dimos.messages': [{(module + '=' + support + '.provider')!r}]}})\n"
     )
     (project / "MANIFEST.in").write_text(
-        f"graft {module}\ngraft {support}\ninclude pyproject.toml setup.py\nglobal-exclude __pycache__ *.pyc\n"
+        f"graft {module.replace('.', '/')}\ngraft {support.replace('.', '/')}\ninclude pyproject.toml setup.py\nglobal-exclude __pycache__ *.pyc\n"
     )
     (project / "message-package.json").write_text(
         json.dumps({"module": module, "types": list(owned)}, indent=2) + "\n"

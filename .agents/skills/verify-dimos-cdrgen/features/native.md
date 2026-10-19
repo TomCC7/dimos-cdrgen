@@ -32,7 +32,9 @@ python -m pytest dimos_cdrgen/test_native_consumer.py -q \
   --junitxml="$RUN_DIR/evidence/native.xml" 2>&1 | tee "$RUN_DIR/evidence/native.log"
 ```
 
-Require one pass without skips and three CDR files in the evidence directory.
+Require two passes without skips. Each `flat/` and `nested/` evidence directory
+contains three CDR files. The nested case moves the Python modules without
+changing CMake package names or Rust crate identities.
 The consumer compiles actual C++ and Rust code. Python starts value `20.5`, C++
 and Rust each increment it, and Python asserts `22.5`, frame `map`, and nanoseconds
 `123456789`. Python identity, C++ static type equality, Rust assignment, independent

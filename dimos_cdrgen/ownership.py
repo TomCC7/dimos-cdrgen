@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import keyword
 from pathlib import Path
 import re
 
@@ -34,6 +35,8 @@ class Dependency:
     owned: tuple[str, ...]
     schemas: dict[str, str]
     codec_owner: str = ""
+    python_module: str = ""
+    distribution: str = ""
 
     @property
     def crate(self) -> str:
@@ -49,6 +52,14 @@ class Dependency:
             raise ValueError(f"Invalid dependency module: {module}")
         if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
             raise ValueError(f"Invalid dependency version: {version}")
+        python_module = data.get("python_module", module)
+        distribution = data.get("distribution", module.replace("_", "-"))
+        if not all(
+            part.isidentifier() and not keyword.iskeyword(part) for part in python_module.split(".")
+        ):
+            raise ValueError(f"Invalid dependency Python namespace: {python_module}")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", distribution):
+            raise ValueError(f"Invalid dependency distribution: {distribution}")
         return cls(
             module,
             version,
@@ -56,6 +67,8 @@ class Dependency:
             tuple(data["owned"]),
             data["schemas"],
             data.get("codec_owner", module),
+            python_module,
+            distribution,
         )
 
 
@@ -64,7 +77,9 @@ def schema_hash(schema: str) -> str:
 
 
 def resolve_owners(
-    messages: tuple[Message, ...], definitions: Definitions, dependencies: tuple[Dependency, ...]
+    messages: tuple[Message, ...],
+    definitions: Definitions,
+    dependencies: tuple[Dependency, ...],
 ) -> dict[str, Dependency]:
     owners: dict[str, Dependency] = {}
     modules: dict[str, str] = {}
