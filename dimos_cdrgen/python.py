@@ -134,9 +134,7 @@ def write_distribution(
     requirements = [
         "numpy>=1.26.4",
         "rosbags==0.11.0",
-        "dimos-cdrgen==0.1.1"
-        if "." in module or any("." in dep.python_module for dep in dependencies)
-        else "dimos-cdrgen==0.1.0",
+        "dimos-cdrgen==0.1.1",
     ] + [
         (dep.distribution or dep.module.replace("_", "-")) + "==" + dep.version
         for dep in dependencies
