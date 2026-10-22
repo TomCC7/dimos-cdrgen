@@ -33,9 +33,10 @@ python -m pytest dimos_cdrgen/test_native_consumer.py -q \
 ```
 
 Require four passes without skips. Each namespace (`flat/` and `nested/`) has
-`be/` and `le/` evidence directories containing three CDR files each. The nested case moves the Python modules without
+`be/` and `le/` evidence directories containing five CDR files each. The nested case moves the Python modules without
 changing CMake package names or Rust crate identities.
-The consumer compiles actual C++ and Rust code. Python starts value `20.5`, C++
+The consumer compiles actual C++ and Rust code and exchanges messages in both
+orders: Python → C++ → Rust → Python and Python → Rust → C++ → Python. Python starts value `20.5`, C++
 and Rust each increment it, and Python asserts `22.5`, frame `map`, and nanoseconds
 `123456789`. Python identity, C++ static type equality, Rust assignment, independent
 rosbags decoding, and rejection of changed schema hashes/versions must all pass.

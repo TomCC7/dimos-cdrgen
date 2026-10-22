@@ -144,14 +144,15 @@ target_link_libraries(consumer PRIVATE ownership_custom::messages)
 #include <iterator>
 #include <type_traits>
 static_assert(std::is_same_v<decltype(custom_msgs::msg::Reading{}.header), std_msgs::msg::Header>);
-int main() {
- std::ifstream in("input.cdr", std::ios::binary);
+int main(int argc, char** argv) {
+ if (argc != 3) return 2;
+ std::ifstream in(argv[1], std::ios::binary);
  std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(in)), {});
  auto msg = dimos::cdr::cdr_decode<custom_msgs::msg::Reading>(bytes);
  std_msgs::msg::Header header = msg.header; msg.header = header;
  msg.value += 1;
  auto out = dimos::cdr::cdr_encode(msg, LITTLE_ENDIAN);
- std::ofstream file("cpp.cdr", std::ios::binary);
+ std::ofstream file(argv[2], std::ios::binary);
  file.write(reinterpret_cast<const char*>(out.data()), out.size());
  return file ? 0 : 1;
 }
@@ -169,13 +170,19 @@ int main() {
         check=True,
     )
     subprocess.run(["cmake", "--build", str(consumer / "build"), "-j", "2"], check=True)
-    subprocess.run([str(consumer / "build/consumer")], cwd=tmp_path, check=True)
+    subprocess.run(
+        [str(consumer / "build/consumer"), "input.cdr", "cpp.cdr"],
+        cwd=tmp_path,
+        check=True,
+    )
     (custom / "rust/src/bin").mkdir()
     (custom / "rust/src/bin/check.rs").write_text(
         """use ownership_custom_messages::custom_msgs::msg::reading::Reading;
 use ownership_base_messages::std_msgs::msg::header::Header;
 fn main() {
- let wire = std::fs::read("cpp.cdr").unwrap();
+ let paths: Vec<_> = std::env::args().skip(1).collect();
+ assert_eq!(paths.len(), 2);
+ let wire = std::fs::read(&paths[0]).unwrap();
  let mut msg: Reading = cdr::deserialize(&wire).unwrap();
  assert_eq!(msg.header.stamp.sec, 1700000000);
  assert_eq!(msg.header.stamp.nanosec, 123456789);
@@ -191,7 +198,7 @@ fn main() {
  let header: Header = msg.header; msg.header = header;
  msg.value += 1.0;
  let wire = cdr::serialize::<_, _, cdr::WIRE_ENDIAN>(&msg, cdr::Infinite).unwrap();
- std::fs::write("rust.cdr", wire).unwrap();
+ std::fs::write(&paths[1], wire).unwrap();
 }
 """.replace("WIRE_ENDIAN", "CdrLe" if little_endian else "CdrBe")
     )
@@ -204,23 +211,44 @@ fn main() {
             str(custom / "rust/Cargo.toml"),
             "--bin",
             "check",
+            "--",
+            "cpp.cdr",
+            "rust.cdr",
+        ],
+        cwd=tmp_path,
+        check=True,
+    )
+    # Exchange in the other order as well: Python -> Rust -> C++ -> Python.
+    subprocess.run(
+        [
+            "cargo",
+            "run",
+            *(["--offline"] if os.environ.get("DIMOS_OFFLINE") == "1" else []),
+            "--manifest-path",
+            str(custom / "rust/Cargo.toml"),
+            "--bin",
+            "check",
+            "--",
+            "input.cdr",
+            "rust-first.cdr",
         ],
         cwd=tmp_path,
         check=True,
     )
     subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            bootstrap
-            + """
+        [str(consumer / "build/consumer"), "rust-first.cdr", "reverse.cdr"],
+        cwd=tmp_path,
+        check=True,
+    )
+    verify = (
+        bootstrap
+        + """
 from ownership_base.std_msgs.msg import Header
-from ownership_base.builtin_interfaces.msg import Time
 from ownership_custom.custom_msgs.msg import Reading
-from ownership_base.sensor_msgs.msg import Image, PointCloud2, PointField
 from pathlib import Path
 from rosbags.typesys import Stores, get_typestore, get_types_from_msg
-msg = registry.decode(Path('rust.cdr').read_bytes(), Reading)
+import sys
+msg = registry.decode(Path(sys.argv[1]).read_bytes(), Reading)
 assert type(msg.header) is Header
 assert (msg.value, msg.header.frame_id, msg.header.stamp.sec, msg.header.stamp.nanosec) == (22.5, 'map', 1700000000, 123456789)
 assert msg.covariance.tolist() == list(range(36))
@@ -233,14 +261,18 @@ assert msg.empty.tolist() == []
 reference = get_typestore(Stores.ROS2_JAZZY)
 reference.register(get_types_from_msg(registry.schema(Reading.__msgtype__), Reading.__msgtype__))
 assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).value == 22.5
-""".replace("ownership_base.", base_python + ".").replace(
-                "ownership_custom.", custom_python + "."
-            ),
-        ],
-        cwd=tmp_path,
-        env=env,
-        check=True,
+"""
     )
+    verify = verify.replace("ownership_base.", base_python + ".").replace(
+        "ownership_custom.", custom_python + "."
+    )
+    for result in ("rust.cdr", "reverse.cdr"):
+        subprocess.run(
+            [sys.executable, "-c", verify, result],
+            cwd=tmp_path,
+            env=env,
+            check=True,
+        )
     # Public source manifests are validated before classes are exposed.
     manifest_path = base / "message-package.json"
     installed_manifest = (
@@ -276,11 +308,17 @@ assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).valu
     if destination:
         evidence = (
             Path(destination)
-            / ("le" if little_endian else "be")
             / ("nested" if nested else "flat")
+            / ("le" if little_endian else "be")
         )
         evidence.mkdir(parents=True, exist_ok=True)
-        for name in ("input.cdr", "cpp.cdr", "rust.cdr"):
+        for name in (
+            "input.cdr",
+            "cpp.cdr",
+            "rust.cdr",
+            "rust-first.cdr",
+            "reverse.cdr",
+        ):
             shutil.copy2(tmp_path / name, evidence / name)
         shutil.copytree(
             custom / "cpp/custom_msgs", evidence / "custom_msgs", dirs_exist_ok=True
