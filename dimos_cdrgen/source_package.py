@@ -24,12 +24,11 @@ import argparse
 from importlib.util import find_spec
 import json
 from pathlib import Path
-import re
 import shutil
 import sys
 from typing import Any
 
-from setuptools import find_packages
+from setuptools import find_namespace_packages
 from setuptools.command.sdist import sdist
 
 if sys.version_info >= (3, 11):
@@ -57,6 +56,7 @@ def configuration(project: Path) -> dict[str, Any]:
     unknown = settings.keys() - {
         "source",
         "module",
+        "python-module",
         "resources",
         "roots",
         "catalog",
@@ -92,13 +92,16 @@ def configuration(project: Path) -> dict[str, Any]:
         raise ValueError("A message package requires at least one root")
     dependencies = []
     for name, version in sorted(settings.get("dependencies", {}).items()):
-        if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+        if not all(part.isidentifier() for part in name.split(".")):
             raise ValueError(f"Invalid message dependency module: {name}")
         spec = find_spec(name + "_schemas")
         if spec is None or spec.origin is None:
             raise ValueError(f"Message build dependency is not installed: {name}")
         dependency = Dependency.load(Path(spec.origin).parent / "package")
-        if dependency.module != name or dependency.version != version:
+        if (
+            name not in {dependency.module, dependency.python_module}
+            or dependency.version != version
+        ):
             raise ValueError(f"Message dependency identity/version mismatch: {name}=={version}")
         dependencies.append(dependency)
     for resource in resources:
@@ -108,6 +111,8 @@ def configuration(project: Path) -> dict[str, Any]:
         raise ValueError("Message resource basenames must be unique")
     return {
         "module": module,
+        "python_module": settings.get("python-module", module),
+        "distribution": data["project"]["name"],
         "version": data["project"]["version"],
         "source": source,
         "roots": names,
@@ -124,11 +129,15 @@ def prepare(project: Path, output: Path | None = None) -> Path:
         output,
         config["roots"],
         config["module"],
+        python_module=config["python_module"],
+        distribution=config["distribution"],
         version=config["version"],
         dependencies=config["dependencies"],
         shared=True,
     )
-    resources = output / "python" / (config["module"] + "_schemas") / "package"
+    resources = (
+        output / "python" / (config["python_module"].replace(".", "/") + "_schemas") / "package"
+    )
     for path in config["resources"]:
         shutil.copyfile(path, resources / path.name)
     return output / "python"
@@ -156,9 +165,12 @@ class SourceDistribution(sdist):
 def setup_arguments(project: Path) -> dict[str, Any]:
     project = project.resolve()
     source = prepare(project)
-    module = configuration(project)["module"]
+    module = configuration(project)["python_module"]
     return {
-        "packages": find_packages(str(source)),
+        "packages": find_namespace_packages(
+            str(source),
+            include=[module, module + ".*", module + "_schemas", module + "_schemas.*"],
+        ),
         "package_dir": {"": str(source.relative_to(project))},
         "package_data": {
             module: ["py.typed", "*.pyi", "**/*.pyi"],
@@ -174,11 +186,11 @@ def package_settings(project: Path) -> dict[str, Any]:
     project = project.resolve()
     config = configuration(project)
     source = prepare(project)
-    module = config["module"]
+    module = config["python_module"]
     return {
         "wheel": {
             "packages": {
-                name: str((source / name).relative_to(project))
+                name: str((source / name.replace(".", "/")).relative_to(project))
                 for name in (module, module + "_schemas")
             },
         },

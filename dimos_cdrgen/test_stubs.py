@@ -17,12 +17,15 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from dimos_cdrgen.generate import generate
 from dimos_cdrgen.prepare_test_inputs import OUTPUT as TEST_INPUTS
 
 
+@pytest.mark.parametrize("python_module", ["dimos_generated", "robot.messages"])
 def test_generated_interfaces_check_nested_fields_buffers_and_keyword_arguments(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, python_module
 ):
     definition = tmp_path / "interfaces/demo_msgs/msg/Reading.msg"
     definition.parent.mkdir(parents=True)
@@ -34,6 +37,7 @@ def test_generated_interfaces_check_nested_fields_buffers_and_keyword_arguments(
         tmp_path / "generated",
         ["demo_msgs/msg/Reading"],
         languages=("python",),
+        python_module=python_module,
     )
     (tmp_path / "dimos_cdrgen").symlink_to(Path(__file__).parent, target_is_directory=True)
     monkeypatch.setenv(
@@ -54,6 +58,7 @@ def test_generated_interfaces_check_nested_fields_buffers_and_keyword_arguments(
         "pixels = value.payload.view()\n"
         "result: float = decode(encode(value), Reading).position.x\n"
     )
+    source.write_text(source.read_text().replace("dimos_generated.", python_module + "."))
     command = [
         sys.executable,
         "-m",

@@ -20,9 +20,9 @@ import argparse
 import json
 import keyword
 import os
-from pathlib import Path
 import re
 import shutil
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from dimos_cdrgen import cpp, python, rust
@@ -38,6 +38,8 @@ def generate(
     names: list[str] | None = None,
     module: str = "dimos_generated",
     *,
+    python_module: str | None = None,
+    distribution: str | None = None,
     installed: bool = False,
     version: str = "0.1.0",
     dependencies: tuple[Dependency, ...] = (),
@@ -46,7 +48,9 @@ def generate(
 ) -> tuple[str, ...]:
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    with TemporaryDirectory(prefix=".message-generation-", dir=output.parent) as temporary:
+    with TemporaryDirectory(
+        prefix=".message-generation-", dir=output.parent
+    ) as temporary:
         stage = Path(temporary) / "output"
         if output.exists():
             shutil.copytree(output, stage)
@@ -55,6 +59,8 @@ def generate(
             stage,
             names,
             module,
+            python_module=python_module or module,
+            distribution=distribution or module.replace("_", "-"),
             installed=installed,
             version=version,
             dependencies=dependencies,
@@ -80,6 +86,8 @@ def _generate(
     names: list[str] | None,
     module: str,
     *,
+    python_module: str,
+    distribution: str,
     installed: bool,
     version: str,
     dependencies: tuple[Dependency, ...],
@@ -89,6 +97,13 @@ def _generate(
 ) -> tuple[str, ...]:
     if not re.fullmatch(r"[a-z][a-z0-9_]*", module) or keyword.iskeyword(module):
         raise ValueError(f"Invalid Python package module name: {module}")
+    if not all(
+        part.isidentifier() and not keyword.iskeyword(part)
+        for part in python_module.split(".")
+    ):
+        raise ValueError(f"Invalid Python namespace: {python_module}")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", distribution):
+        raise ValueError(f"Invalid distribution name: {distribution}")
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         raise ValueError("Package version must have the form major.minor.patch")
     if not languages or set(languages) - {"python", "cpp", "rust"}:
@@ -122,7 +137,9 @@ def _generate(
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(source, target)
     metadata = {msg.name: definitions.schema(msg.name) for msg in messages}
-    (output / "schemas.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    (output / "schemas.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+    )
     unsupported: dict[str, dict[str, str]] = {
         language: {} for language in ["python", "cpp", "rust"]
     }
@@ -136,16 +153,31 @@ def _generate(
             for msg in closure
             for field in msg.fields
         ):
-            unsupported["python"][message.name] = "rosbags does not enforce declared bounds"
-        if any(field.type.string_bound is not None for msg in closure for field in msg.fields):
-            unsupported["cpp"][message.name] = "upstream FastRTPS does not enforce bounded strings"
-            unsupported["rust"][message.name] = "native bounded-string semantics not validated"
+            unsupported["python"][message.name] = (
+                "rosbags does not enforce declared bounds"
+            )
+        if any(
+            field.type.string_bound is not None
+            for msg in closure
+            for field in msg.fields
+        ):
+            unsupported["cpp"][message.name] = (
+                "upstream FastRTPS does not enforce bounded strings"
+            )
+            unsupported["rust"][message.name] = (
+                "native bounded-string semantics not validated"
+            )
         if any(field.type.name == "wstring" for msg in closure for field in msg.fields):
-            unsupported["rust"][message.name] = "re_cdr wstring mapping not validated"
+            unsupported["rust"][message.name] = "cdr wstring mapping not validated"
     manifest = {
         "format": 1,
         "abi": ABI,
         "module": module,
+        "python_module": python_module,
+        "distribution": distribution,
+        "python_dependencies": {
+            dep.module: dep.python_module or dep.module for dep in dependencies
+        },
         "version": version,
         "shared": shared,
         "dependencies": {dep.module: dep.version for dep in dependencies},
@@ -165,31 +197,41 @@ def _generate(
     if "python" in languages:
         for name, content in python.generate(
             owned,
-            module,
+            python_module,
             version=version,
-            imports={name: owner.module for name, owner in owners.items()},
+            imports={
+                name: owner.python_module or owner.module
+                for name, owner in owners.items()
+            },
         ).items():
-            path = output / "python" / module / name
+            path = output / "python" / python_module.replace(".", "/") / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content)
     if "cpp" in languages:
         if unsupported["cpp"]:
-            raise NotImplementedError(f"Unsupported native C++ semantics: {unsupported['cpp']}")
+            raise NotImplementedError(
+                f"Unsupported native C++ semantics: {unsupported['cpp']}"
+            )
         cpp.write_project(output / "cpp", owned, module, version)
     if "rust" in languages:
         if unsupported["rust"]:
-            raise NotImplementedError(f"Unsupported native Rust semantics: {unsupported['rust']}")
+            raise NotImplementedError(
+                f"Unsupported native Rust semantics: {unsupported['rust']}"
+            )
         crate = output / "rust"
         crate.mkdir()
         shutil.copyfile(output / "schemas.json", crate / "schemas.json")
         rust.write_crate(
-            crate, owned, definitions, {name: owner.crate for name, owner in owners.items()}
+            crate,
+            owned,
+            definitions,
+            {name: owner.crate for name, owner in owners.items()},
         )
         (crate / "Cargo.toml").write_text(
             f'[package]\nname = "{module.replace("_", "-")}-messages"\nversion = "{version}"\nedition = "2024"\n'
             'license = "Apache-2.0"\n[workspace]\n[dependencies]\n'
             'serde = {version = "1", features = ["derive"]}\nserde-big-array = "=0.5.1"\n'
-            're_cdr = "=0.1.0"\nheapless = {version = "=0.8.0", features = ["serde"]}\n'
+            'cdr = { version = "=0.2.4", git = "https://github.com/TomCC7/cdr-rs", rev = "38a4368255d408faf374726653b39d4a4e9735cb" }\nheapless = {version = "=0.8.0", features = ["serde"]}\n'
             + "".join(
                 f'{dep.module.replace("_", "-")}-messages = {{version = "={dep.version}", path = {json.dumps(os.path.relpath(dep.root / "rust", final_output / "rust"))}}}\n'
                 for dep in dependencies
@@ -198,7 +240,12 @@ def _generate(
         )
     if "python" in languages:
         python.write_distribution(
-            output, module, tuple(msg.name for msg in owned), version, dependencies=dependencies
+            output,
+            python_module,
+            tuple(msg.name for msg in owned),
+            version,
+            dependencies=dependencies,
+            distribution=distribution,
         )
     return tuple(msg.name for msg in messages)
 
@@ -207,13 +254,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--package-root", type=Path, action="append", default=[])
     parser.add_argument(
-        "--type", dest="names", action="append", help="Root package/msg/Type (repeatable)"
+        "--type",
+        dest="names",
+        action="append",
+        help="Root package/msg/Type (repeatable)",
     )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--python-module", default="dimos_generated")
     parser.add_argument("--version", default="0.1.0")
     parser.add_argument(
-        "--package", action="store_true", help="Emit a reproducible Python wheel/sdist project"
+        "--package",
+        action="store_true",
+        help="Emit a reproducible Python wheel/sdist project",
     )
     args = parser.parse_args()
     try:
@@ -226,10 +278,14 @@ def main() -> None:
             version=args.version,
         )
         if args.package:
-            python.write_distribution(args.output, args.python_module, names, args.version)
+            python.write_distribution(
+                args.output, args.python_module, names, args.version
+            )
     except ValueError as exc:
         parser.error(str(exc))
-    print(f"Generated {len(names)} message types for Python, C++, and Rust in {args.output}")
+    print(
+        f"Generated {len(names)} message types for Python, C++, and Rust in {args.output}"
+    )
 
 
 if __name__ == "__main__":

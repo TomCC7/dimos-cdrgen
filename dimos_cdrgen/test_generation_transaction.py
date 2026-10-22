@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import json
 from pathlib import Path
 
 import pytest
@@ -66,3 +67,40 @@ def test_failed_generation_preserves_previous_output_and_success_removes_stale_f
     assert not (root / "schemas/probe_msgs/msg/Reading.msg").exists()
     assert (root / "schemas/probe_msgs/msg/Changed.msg").exists()
     assert not list(tmp_path.glob(".message-generation-*"))
+
+
+def test_python_namespace_keeps_native_names_and_removes_previous_python_tree(tmp_path):
+    source = tmp_path / "inputs/probe_msgs/msg/Reading.msg"
+    source.parent.mkdir(parents=True)
+    source.write_text("float64 value\n")
+    output = tmp_path / "output"
+    generator.generate([tmp_path / "inputs"], output, module="native_owner", shared=True)
+    native_before = {name: snapshot(output / name) for name in ("cpp", "rust")}
+    generator.generate(
+        [tmp_path / "inputs"],
+        output,
+        module="native_owner",
+        shared=True,
+        python_module="robot.messages",
+        distribution="robot-sdk",
+    )
+    assert {name: snapshot(output / name) for name in ("cpp", "rust")} == native_before
+    assert not (output / "python/native_owner").exists()
+    assert (output / "python/robot/messages/probe_msgs/msg/__init__.py").is_file()
+    manifest = json.loads((output / "message-package.json").read_text())
+    assert manifest["module"] == "native_owner"
+    assert manifest["python_module"] == "robot.messages"
+    assert manifest["distribution"] == "robot-sdk"
+
+
+@pytest.mark.parametrize("namespace", ["a..b", "a.class", "../x", "a-b.c"])
+def test_invalid_python_namespace_preserves_previous_output(tmp_path, namespace):
+    source = tmp_path / "inputs/probe_msgs/msg/Reading.msg"
+    source.parent.mkdir(parents=True)
+    source.write_text("float64 value\n")
+    output = tmp_path / "output"
+    generator.generate([tmp_path / "inputs"], output, module="probe")
+    before = snapshot(output)
+    with pytest.raises(ValueError, match="Invalid Python namespace"):
+        generator.generate([tmp_path / "inputs"], output, module="probe", python_module=namespace)
+    assert snapshot(output) == before

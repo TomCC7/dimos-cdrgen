@@ -16,11 +16,15 @@ Run `dimos-cdrgen` in a configured message project, or call `generate()`.
 
 Preconditions: the parent skill's prepared Python environment and fresh run directory.
 
-Run the parent skill's fast command. Require three passes. The CLI test changes
+Run the parent skill's fast command. Require eight passes. The CLI test changes
 `Stamp.msg` to `Clock.msg` and asserts only the new export remains. The transaction
 test compares all prior output bytes after unsupported input, emitter failure,
 and replacement failure, then checks that stale schemas and language output
 are removed after a successful generation.
+
+The namespace tests regenerate a flat Python package under `robot.messages`,
+verify that old Python output disappears, and compare C++/Rust sources byte for
+byte. Invalid namespace configurations preserve the previous output.
 
 ## Gotchas
 

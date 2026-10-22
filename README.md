@@ -2,8 +2,7 @@
 
 A standalone `.msg` generator and CDR toolkit for Python, C++ and Rust. It does
 not depend on the DimOS runtime, a ROS installation, or a running robot.
-The package is named `dimos-cdrgen` (import `dimos_cdrgen`). No registry release
-is assumed by these instructions.
+The package is named `dimos-cdrgen` (import `dimos_cdrgen`). The current release is available on PyPI.
 
 ## Documentation
 
@@ -141,20 +140,17 @@ exclude = ["build/message-source/rust"]
 
 [dependencies]
 acme-messages = { path = "build/message-source/rust" }
-re_cdr = "=0.1.0"
+# Pin the upstream string-allocation fix until it is released.
+cdr = { version = "=0.2.4", git = "https://github.com/TomCC7/cdr-rs", rev = "38a4368255d408faf374726653b39d4a4e9735cb" }
 ```
 
 ```rust
 use acme_messages::example_msgs::msg::reading::Reading;
 fn main() {
     let message = Reading { sequence: 1, value: 21.5 };
-    let body = re_cdr::to_vec::<_, re_cdr::LittleEndian>(&message).unwrap();
-    let mut wire = vec![0, 1, 0, 0]; // plain little-endian CDR encapsulation
-    wire.extend(body);
-    let (decoded, used) =
-        re_cdr::from_bytes::<Reading, re_cdr::LittleEndian>(&wire[4..]).unwrap();
+    let wire = cdr::serialize::<_, _, cdr::CdrLe>(&message, cdr::Infinite).unwrap();
+    let decoded: Reading = cdr::deserialize(&wire).unwrap();
     assert_eq!(decoded.value, 21.5);
-    assert_eq!(used, wire.len() - 4);
 }
 ```
 
@@ -166,6 +162,24 @@ extension or publish a crate.
 ## Dependency ownership and DimOS integration
 
 Standard ROS message definitions are a separate catalog, not bundled here.
+Set `python-module` when generated types belong inside an existing Python
+package. Keep `module` as the CMake/Cargo identity:
+
+```toml
+[tool.dimos.messages]
+module = "robot_messages"
+python-module = "robot.messages"
+```
+
+This generates `from robot.messages.example_msgs.msg import Reading` while
+retaining native package names derived from `robot_messages`. The Python
+distribution name comes from `[project].name`. A consuming source project uses
+`"robot.messages" = "0.1.0"` in its message dependency table and declares the
+owning distribution in its Python build/runtime dependencies. Schemas and
+provider metadata use `robot.messages_schemas`, so provider discovery does not
+import the generated value modules recursively. Nested namespaces require
+`dimos-cdrgen==0.1.2` or later in build and runtime dependencies.
+
 Declare an installed message package in `tool.dimos.messages.dependencies` with
 its exact module/version. The generator imports its Python types, links its C++
 declarations, and reuses its Rust crate types. It rejects conflicting ownership,
@@ -202,7 +216,7 @@ installation tests require `DIMOS_MESSAGE_WHEELHOUSE` containing the Python buil
 and runtime dependency wheels. The optional joint DimOS adapter test also needs
 `DIMOS_BUILD_CONFIG_SOURCE`; it is not required to use the standalone library.
 
-## Prepare a release; do not publish yet
+## Prepare and publish a release
 
 Use the [publishing guide](docs/publishing.md) for the locked build environment,
 standalone consumer checks, and manual `dry-run`, `testpypi`, or `pypi` workflow.
@@ -210,7 +224,7 @@ The default `dry-run` never uploads. A real upload requires an approved registry
 account and project, Trusted Publisher configuration, and a matching version tag.
 
 1. Confirm the authorized registry account and publishing destination.
-   The current `0.1.0` metadata is a development candidate, not an existing release.
+   Choose a new version; registry uploads cannot replace an existing release.
 2. Prepare the pinned parser, then build the wheel and sdist in a clean directory.
    Retain upstream licenses and source hashes. Do not commit prepared upstream code.
 3. Run `python -m twine check dist/*`, install the wheel in a clean environment,
