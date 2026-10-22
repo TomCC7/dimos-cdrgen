@@ -34,7 +34,7 @@ a CDR round trip. The C++ and Rust quickstarts use the same project and fields.
 
 -   ### [Rust](quickstarts/rust.md)
 
-    Compile the generated crate with Cargo. Encode and decode with `re_cdr`.
+    Compile the generated crate with Cargo. Encode and decode with `cdr`.
 
 </div>
 

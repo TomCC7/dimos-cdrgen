@@ -11,7 +11,7 @@ dependency closure as well as its own fields.
 | Bounded strings or bounded sequences in Python. | Schemas retain bounds, but rosbags does not enforce them. `encode()` and `decode()` reject affected types. |
 | Bounded strings in C++. | Generation rejects them because upstream FastRTPS does not enforce the declared bound. |
 | Bounded strings in Rust. | Generation rejects them because native semantics are not validated. |
-| `wstring` in Rust. | Generation rejects it because the `re_cdr` mapping is not validated. |
+| `wstring` in Rust. | Generation rejects it because the `cdr` mapping is not validated. |
 | Declared defaults in Python. | Construction requires explicit fields. Preserved schema defaults do not become implicit constructor defaults. |
 | Declared defaults in Rust. | Construction requires explicit fields. Upstream `Default` generation is unsupported. |
 | C++ default construction. | Uses upstream-generated constructors. |

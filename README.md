@@ -141,20 +141,17 @@ exclude = ["build/message-source/rust"]
 
 [dependencies]
 acme-messages = { path = "build/message-source/rust" }
-re_cdr = "=0.1.0"
+# Pin the upstream string-allocation fix until it is released.
+cdr = { version = "=0.2.4", git = "https://github.com/TomCC7/cdr-rs", rev = "38a4368255d408faf374726653b39d4a4e9735cb" }
 ```
 
 ```rust
 use acme_messages::example_msgs::msg::reading::Reading;
 fn main() {
     let message = Reading { sequence: 1, value: 21.5 };
-    let body = re_cdr::to_vec::<_, re_cdr::LittleEndian>(&message).unwrap();
-    let mut wire = vec![0, 1, 0, 0]; // plain little-endian CDR encapsulation
-    wire.extend(body);
-    let (decoded, used) =
-        re_cdr::from_bytes::<Reading, re_cdr::LittleEndian>(&wire[4..]).unwrap();
+    let wire = cdr::serialize::<_, _, cdr::CdrLe>(&message, cdr::Infinite).unwrap();
+    let decoded: Reading = cdr::deserialize(&wire).unwrap();
     assert_eq!(decoded.value, 21.5);
-    assert_eq!(used, wire.len() - 4);
 }
 ```
 

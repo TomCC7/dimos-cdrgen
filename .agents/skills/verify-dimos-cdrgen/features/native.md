@@ -32,13 +32,16 @@ python -m pytest dimos_cdrgen/test_native_consumer.py -q \
   --junitxml="$RUN_DIR/evidence/native.xml" 2>&1 | tee "$RUN_DIR/evidence/native.log"
 ```
 
-Require two passes without skips. Each `flat/` and `nested/` evidence directory
-contains three CDR files. The nested case moves the Python modules without
+Require four passes without skips. Each namespace (`flat/` and `nested/`) has
+`be/` and `le/` evidence directories containing three CDR files each. The nested case moves the Python modules without
 changing CMake package names or Rust crate identities.
 The consumer compiles actual C++ and Rust code. Python starts value `20.5`, C++
 and Rust each increment it, and Python asserts `22.5`, frame `map`, and nanoseconds
 `123456789`. Python identity, C++ static type equality, Rust assignment, independent
 rosbags decoding, and rejection of changed schema hashes/versions must all pass.
+The payload also carries standard Image and PointCloud2 messages, a 36-element
+fixed array, UTF-8 text, byte and float sequences, and an empty sequence.
+Rust consumers use the pinned external CDR library, including its string-boundary fix.
 
 ## Gotchas
 

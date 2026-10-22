@@ -1,0 +1,33 @@
+name: Native CDR consumers
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  interoperability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DIMOS_NATIVE_ACCEPTANCE: "1"
+      DIMOS_NATIVE_TEST_CACHE: ${{ github.workspace }}/build/native-cache
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Prepare pinned parser and install the library
+        run: |
+          python -m pip install 'setuptools>=77' wheel requests
+          python dimos_cdrgen/prepare_parser.py
+          python -m pip install '.[test,native]'
+          python -m dimos_cdrgen.prepare_test_inputs
+      - name: Run real Python, C++ and Rust consumers
+        run: |
+          python -m pytest -q dimos_cdrgen/test_native_consumer.py dimos_cdrgen/test_rust_reexport.py

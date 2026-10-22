@@ -21,7 +21,8 @@ exclude = ["build/message-source/rust"]
 
 [dependencies]
 acme-messages = { path = "build/message-source/rust" }
-re_cdr = "=0.1.0"
+# Pin the upstream string-allocation fix until it is released.
+cdr = { version = "=0.2.4", git = "https://github.com/TomCC7/cdr-rs", rev = "38a4368255d408faf374726653b39d4a4e9735cb" }
 ```
 
 Create `src/main.rs`:
@@ -31,14 +32,10 @@ use acme_messages::example_msgs::msg::reading::Reading;
 
 fn main() {
 	let message = Reading { sequence: 1, value: 21.5 };
-	let body = re_cdr::to_vec::<_, re_cdr::LittleEndian>(&message).unwrap();
-	let mut wire = vec![0, 1, 0, 0];
-	wire.extend(body);
-	let (restored, used) =
-		re_cdr::from_bytes::<Reading, re_cdr::LittleEndian>(&wire[4..]).unwrap();
+	let wire = cdr::serialize::<_, _, cdr::CdrLe>(&message, cdr::Infinite).unwrap();
+	let restored: Reading = cdr::deserialize(&wire).unwrap();
 	assert_eq!(restored.sequence, 1);
 	assert_eq!(restored.value, 21.5);
-	assert_eq!(used, wire.len() - 4);
 }
 ```
 
@@ -52,9 +49,8 @@ The executable exits successfully when its assertions pass. Cargo invokes
 `ros2msg` through the generated `build.rs` and compiles declarations in Cargo's
 `OUT_DIR`. It does not create a Python extension or publish a crate.
 
-`re_cdr` encodes the CDR body. The four bytes added above are the plain
-little-endian CDR encapsulation header used by this example. The decoder receives
-the body after that header.
+`cdr` encodes and decodes the complete CDR message, including its encapsulation
+header. `CdrLe` selects little-endian CDR; use `CdrBe` for big-endian output.
 
 For a machine with cached dependencies, use `cargo run --offline`.
 Commit your application's `Cargo.lock` to preserve its resolved dependencies.

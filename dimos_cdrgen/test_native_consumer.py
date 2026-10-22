@@ -14,10 +14,10 @@
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -41,20 +41,27 @@ def restore_reference_types_module():
             sys.modules["rosbags.usertypes"] = previous
 
 
+@pytest.mark.parametrize("little_endian", [False, True], ids=["be", "le"])
 @pytest.mark.parametrize("nested", [False, True], ids=["flat", "nested"])
-def test_separate_packages_share_types_and_exchange_cdr(tmp_path, monkeypatch, nested):
+def test_separate_packages_share_types_and_exchange_cdr(
+    tmp_path, monkeypatch, nested, little_endian
+):
     if os.environ.get("DIMOS_NATIVE_ACCEPTANCE") != "1":
-        pytest.skip("Set DIMOS_NATIVE_ACCEPTANCE=1 to run the compiled ownership contract")
+        pytest.skip(
+            "Set DIMOS_NATIVE_ACCEPTANCE=1 to run the compiled ownership contract"
+        )
     source = tmp_path / "interfaces/custom_msgs/msg/Reading.msg"
     source.parent.mkdir(parents=True)
-    source.write_text("std_msgs/Header header\nfloat64 value\n")
+    source.write_text(
+        "std_msgs/Header header\nfloat64 value\nfloat64[36] covariance\nstring label\nuint8[] pixels\nfloat32[] points\nint32[] empty\nsensor_msgs/Image image\nsensor_msgs/PointCloud2 cloud\n"
+    )
     base, custom = tmp_path / "base", tmp_path / "custom"
     base_python = "robot.base" if nested else "ownership_base"
     custom_python = "robot.custom" if nested else "ownership_custom"
     generate(
         [TEST_INPUTS],
         base,
-        ["std_msgs/msg/Header"],
+        ["std_msgs/msg/Header", "sensor_msgs/msg/Image", "sensor_msgs/msg/PointCloud2"],
         "ownership_base",
         shared=True,
         python_module=base_python,
@@ -71,7 +78,9 @@ def test_separate_packages_share_types_and_exchange_cdr(tmp_path, monkeypatch, n
     monkeypatch.syspath_prepend(str(base / "python"))
     sources = {
         name: Path(path)
-        for name, path in json.loads(os.environ.get("DIMOS_NATIVE_SOURCE_DIRS", "{}")).items()
+        for name, path in json.loads(
+            os.environ.get("DIMOS_NATIVE_SOURCE_DIRS", "{}")
+        ).items()
     }
     cache = os.environ.get("DIMOS_NATIVE_TEST_CACHE")
     prefix = prepare_cpp(
@@ -81,7 +90,9 @@ def test_separate_packages_share_types_and_exchange_cdr(tmp_path, monkeypatch, n
         source_dirs=sources or None,
     )
     toolchain = write_cmake_toolchain(prefix, tmp_path / "toolchain.cmake")
-    (tmp_path / "dimos_cdrgen").symlink_to(Path(__file__).parent, target_is_directory=True)
+    (tmp_path / "dimos_cdrgen").symlink_to(
+        Path(__file__).parent, target_is_directory=True
+    )
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join(
@@ -95,23 +106,27 @@ registry.providers = lambda: ()
 registry.initialize((Path("base"), Path("custom")), discover=False)
 """
     python = """
+import numpy as np
 from ownership_base.std_msgs.msg import Header
 from ownership_base.builtin_interfaces.msg import Time
 from ownership_custom.custom_msgs.msg import Reading
+from ownership_base.sensor_msgs.msg import Image, PointCloud2, PointField
 from pathlib import Path
 h = Header(stamp=Time(sec=0, nanosec=0), frame_id='map')
-h.stamp.sec = 17
+h.stamp.sec = 1700000000
 h.stamp.nanosec = 123456789
-msg = Reading(header=h, value=20.5)
+msg = Reading(header=h, value=20.5, covariance=np.arange(36, dtype=np.float64), label='相机/café', pixels=np.array([0, 1, 127, 255], dtype=np.uint8), points=np.array([1.25, -2.5], dtype=np.float32), empty=np.array([], dtype=np.int32), image=Image(h, 1, 1, 'rgb8', 0, 3, np.array([255, 0, 1], dtype=np.uint8)), cloud=PointCloud2(h, 1, 1, [PointField('x', 0, 7, 1)], False, 4, 4, np.array([1.25], dtype='<f4').view(np.uint8), True))
 assert type(msg.header) is Header
 msg.header = h
 assert type(registry.decode(registry.encode(msg), Reading).header) is Header
-Path('input.cdr').write_bytes(registry.encode(msg))
-"""
+Path('input.cdr').write_bytes(registry.encode(msg, little_endian=LITTLE_ENDIAN))
+""".replace("LITTLE_ENDIAN", repr(little_endian))
     python = python.replace("ownership_base.", base_python + ".").replace(
         "ownership_custom.", custom_python + "."
     )
-    subprocess.run([sys.executable, "-c", bootstrap + python], env=env, cwd=tmp_path, check=True)
+    subprocess.run(
+        [sys.executable, "-c", bootstrap + python], env=env, cwd=tmp_path, check=True
+    )
     consumer = tmp_path / "consumer"
     consumer.mkdir()
     (consumer / "CMakeLists.txt").write_text("""cmake_minimum_required(VERSION 3.20)
@@ -121,7 +136,8 @@ add_executable(consumer main.cpp)
 target_compile_features(consumer PRIVATE cxx_std_17)
 target_link_libraries(consumer PRIVATE ownership_custom::messages)
 """)
-    (consumer / "main.cpp").write_text("""#include <std_msgs/msg/header.hpp>
+    (consumer / "main.cpp").write_text(
+        """#include <std_msgs/msg/header.hpp>
 #include <custom_msgs/msg/reading.hpp>
 #include <dimos_cdrgen/cdr.hpp>
 #include <fstream>
@@ -134,12 +150,13 @@ int main() {
  auto msg = dimos::cdr::cdr_decode<custom_msgs::msg::Reading>(bytes);
  std_msgs::msg::Header header = msg.header; msg.header = header;
  msg.value += 1;
- auto out = dimos::cdr::cdr_encode(msg);
+ auto out = dimos::cdr::cdr_encode(msg, LITTLE_ENDIAN);
  std::ofstream file("cpp.cdr", std::ios::binary);
  file.write(reinterpret_cast<const char*>(out.data()), out.size());
  return file ? 0 : 1;
 }
-""")
+""".replace("LITTLE_ENDIAN", str(little_endian).lower())
+    )
     subprocess.run(
         [
             "cmake",
@@ -154,22 +171,30 @@ int main() {
     subprocess.run(["cmake", "--build", str(consumer / "build"), "-j", "2"], check=True)
     subprocess.run([str(consumer / "build/consumer")], cwd=tmp_path, check=True)
     (custom / "rust/src/bin").mkdir()
-    (
-        custom / "rust/src/bin/check.rs"
-    ).write_text("""use ownership_custom_messages::custom_msgs::msg::reading::Reading;
+    (custom / "rust/src/bin/check.rs").write_text(
+        """use ownership_custom_messages::custom_msgs::msg::reading::Reading;
 use ownership_base_messages::std_msgs::msg::header::Header;
 fn main() {
  let wire = std::fs::read("cpp.cdr").unwrap();
- assert_eq!(&wire[..4], &[0, 1, 0, 0]);
- let (mut msg, consumed) = re_cdr::from_bytes::<Reading, re_cdr::LittleEndian>(&wire[4..]).unwrap();
- assert_eq!(consumed, wire.len() - 4);
+ let mut msg: Reading = cdr::deserialize(&wire).unwrap();
+ assert_eq!(msg.header.stamp.sec, 1700000000);
+ assert_eq!(msg.header.stamp.nanosec, 123456789);
+ assert_eq!(msg.covariance[35], 35.0);
+ assert_eq!(msg.label, "相机/café");
+ assert_eq!(msg.pixels, vec![0, 1, 127, 255]);
+ assert_eq!(msg.image.encoding, "rgb8");
+ assert_eq!(msg.image.data, vec![255, 0, 1]);
+ assert_eq!(msg.cloud.fields[0].name, "x");
+ assert_eq!(msg.cloud.data, vec![0, 0, 160, 63]);
+ assert_eq!(msg.points, vec![1.25, -2.5]);
+ assert!(msg.empty.is_empty());
  let header: Header = msg.header; msg.header = header;
  msg.value += 1.0;
- let mut wire = vec![0, 1, 0, 0];
- wire.extend(re_cdr::to_vec::<_, re_cdr::LittleEndian>(&msg).unwrap());
+ let wire = cdr::serialize::<_, _, cdr::WIRE_ENDIAN>(&msg, cdr::Infinite).unwrap();
  std::fs::write("rust.cdr", wire).unwrap();
 }
-""")
+""".replace("WIRE_ENDIAN", "CdrLe" if little_endian else "CdrBe")
+    )
     subprocess.run(
         [
             "cargo",
@@ -192,15 +217,25 @@ fn main() {
 from ownership_base.std_msgs.msg import Header
 from ownership_base.builtin_interfaces.msg import Time
 from ownership_custom.custom_msgs.msg import Reading
+from ownership_base.sensor_msgs.msg import Image, PointCloud2, PointField
 from pathlib import Path
 from rosbags.typesys import Stores, get_typestore, get_types_from_msg
 msg = registry.decode(Path('rust.cdr').read_bytes(), Reading)
 assert type(msg.header) is Header
-assert (msg.value, msg.header.frame_id, msg.header.stamp.nanosec) == (22.5, 'map', 123456789)
+assert (msg.value, msg.header.frame_id, msg.header.stamp.sec, msg.header.stamp.nanosec) == (22.5, 'map', 1700000000, 123456789)
+assert msg.covariance.tolist() == list(range(36))
+assert msg.label == '相机/café'
+assert msg.pixels.tolist() == [0, 1, 127, 255]
+assert msg.image.encoding == 'rgb8' and msg.image.data.tolist() == [255, 0, 1]
+assert msg.cloud.fields[0].name == 'x' and msg.cloud.data.tolist() == [0, 0, 160, 63]
+assert msg.points.tolist() == [1.25, -2.5]
+assert msg.empty.tolist() == []
 reference = get_typestore(Stores.ROS2_JAZZY)
 reference.register(get_types_from_msg(registry.schema(Reading.__msgtype__), Reading.__msgtype__))
 assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).value == 22.5
-""".replace("ownership_base.", base_python + ".").replace("ownership_custom.", custom_python + "."),
+""".replace("ownership_base.", base_python + ".").replace(
+                "ownership_custom.", custom_python + "."
+            ),
         ],
         cwd=tmp_path,
         env=env,
@@ -209,7 +244,9 @@ assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).valu
     # Public source manifests are validated before classes are exposed.
     manifest_path = base / "message-package.json"
     installed_manifest = (
-        base / "python" / (base_python.replace(".", "/") + "_schemas/package/message-package.json")
+        base
+        / "python"
+        / (base_python.replace(".", "/") + "_schemas/package/message-package.json")
     )
     original = manifest_path.read_text()
     for key, value, error in (
@@ -227,6 +264,7 @@ assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).valu
                 cwd=tmp_path,
                 capture_output=True,
                 text=True,
+                check=False,
             )
             assert result.returncode != 0
             assert error in result.stderr
@@ -236,8 +274,14 @@ assert reference.deserialize_cdr(registry.encode(msg), Reading.__msgtype__).valu
 
     destination = os.environ.get("DIMOS_OWNERSHIP_EVIDENCE")
     if destination:
-        evidence = Path(destination) / ("nested" if nested else "flat")
+        evidence = (
+            Path(destination)
+            / ("le" if little_endian else "be")
+            / ("nested" if nested else "flat")
+        )
         evidence.mkdir(parents=True, exist_ok=True)
         for name in ("input.cdr", "cpp.cdr", "rust.cdr"):
             shutil.copy2(tmp_path / name, evidence / name)
-        shutil.copytree(custom / "cpp/custom_msgs", evidence / "custom_msgs", dirs_exist_ok=True)
+        shutil.copytree(
+            custom / "cpp/custom_msgs", evidence / "custom_msgs", dirs_exist_ok=True
+        )

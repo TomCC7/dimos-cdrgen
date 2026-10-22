@@ -29,7 +29,9 @@ def test_rust_dependency_only_package_builds_and_preserves_identity(tmp_path):
     source.parent.mkdir(parents=True)
     source.write_text("int32 value\n")
     base, alias = tmp_path / "base", tmp_path / "alias"
-    generator.generate([tmp_path / "inputs"], base, module="base", shared=True, languages=("rust",))
+    generator.generate(
+        [tmp_path / "inputs"], base, module="base", shared=True, languages=("rust",)
+    )
     generator.generate(
         [],
         alias,
@@ -38,22 +40,31 @@ def test_rust_dependency_only_package_builds_and_preserves_identity(tmp_path):
         dependencies=(Dependency.load(base),),
         languages=("rust",),
     )
-    (alias / "rust/interfaces").rmdir()  # Package archives do not retain empty directories.
+    (
+        alias / "rust/interfaces"
+    ).rmdir()  # Package archives do not retain empty directories.
     tests = alias / "rust/tests"
     tests.mkdir()
     (tests / "identity.rs").write_text(
         "#[test] fn shared_identity_and_codec() {\n"
         "let value = base_messages::probe_msgs::msg::reading::Reading { value: 42 };\n"
         "let alias: alias_messages::probe_msgs::msg::reading::Reading = value;\n"
-        "let wire = re_cdr::to_vec::<_, re_cdr::LittleEndian>(&alias).unwrap();\n"
-        "let (decoded, used) = re_cdr::from_bytes::<base_messages::probe_msgs::msg::reading::Reading, re_cdr::LittleEndian>(&wire).unwrap();\n"
-        "assert_eq!(decoded.value, 42); assert_eq!(used, wire.len());\n"
+        "let wire = cdr::serialize::<_, _, cdr::CdrLe>(&alias, cdr::Infinite).unwrap();\n"
+        "let decoded: base_messages::probe_msgs::msg::reading::Reading = cdr::deserialize(&wire).unwrap();\n"
+        "assert_eq!(decoded.value, 42);\n"
         "}\n"
     )
     result = subprocess.run(
-        ["cargo", "test", "--offline", "--manifest-path", str(alias / "rust/Cargo.toml")],
+        [
+            "cargo",
+            "test",
+            "--offline",
+            "--manifest-path",
+            str(alias / "rust/Cargo.toml"),
+        ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert ".message-generation-" not in (alias / "rust/Cargo.toml").read_text()
