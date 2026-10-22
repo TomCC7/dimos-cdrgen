@@ -32,13 +32,13 @@ def project(root, name, package, definition, dependency=False, backend="setuptoo
     source = root / "interfaces" / package / "msg" / ("Reading.msg" if dependency else "Stamp.msg")
     source.parent.mkdir(parents=True)
     source.write_text(definition)
-    requires = '["setuptools>=70", "wheel", "dimos-cdrgen==0.1.1"'
+    requires = '["setuptools>=70", "wheel", "dimos-cdrgen==0.1.2"'
     if dependency:
         requires += ', "base-messages==0.1.0"'
     (root / "pyproject.toml").write_text(
         "[build-system]\nrequires = " + requires + ']\nbuild-backend = "setuptools.build_meta"\n'
         f'[project]\nname = "{name}"\nversion = "0.1.0"\n'
-        'dependencies = ["dimos-cdrgen==0.1.1", "numpy>=1.26.4", "rosbags==0.11.0"'
+        'dependencies = ["dimos-cdrgen==0.1.2", "numpy>=1.26.4", "rosbags==0.11.0"'
         + (', "base-messages==0.1.0"' if dependency else "")
         + "]\n"
         '[tool.dimos.messages]\nsource = "interfaces"\nresources = ["pins.json"]\n'

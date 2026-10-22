@@ -2,8 +2,7 @@
 
 A standalone `.msg` generator and CDR toolkit for Python, C++ and Rust. It does
 not depend on the DimOS runtime, a ROS installation, or a running robot.
-The package is named `dimos-cdrgen` (import `dimos_cdrgen`). No registry release
-is assumed by these instructions.
+The package is named `dimos-cdrgen` (import `dimos_cdrgen`). The current release is available on PyPI.
 
 ## Documentation
 
@@ -179,7 +178,7 @@ distribution name comes from `[project].name`. A consuming source project uses
 owning distribution in its Python build/runtime dependencies. Schemas and
 provider metadata use `robot.messages_schemas`, so provider discovery does not
 import the generated value modules recursively. Nested namespaces require
-`dimos-cdrgen==0.1.1` or later in build and runtime dependencies.
+`dimos-cdrgen==0.1.2` or later in build and runtime dependencies.
 
 Declare an installed message package in `tool.dimos.messages.dependencies` with
 its exact module/version. The generator imports its Python types, links its C++
@@ -217,7 +216,7 @@ installation tests require `DIMOS_MESSAGE_WHEELHOUSE` containing the Python buil
 and runtime dependency wheels. The optional joint DimOS adapter test also needs
 `DIMOS_BUILD_CONFIG_SOURCE`; it is not required to use the standalone library.
 
-## Prepare a release; do not publish yet
+## Prepare and publish a release
 
 Use the [publishing guide](docs/publishing.md) for the locked build environment,
 standalone consumer checks, and manual `dry-run`, `testpypi`, or `pypi` workflow.
@@ -225,7 +224,7 @@ The default `dry-run` never uploads. A real upload requires an approved registry
 account and project, Trusted Publisher configuration, and a matching version tag.
 
 1. Confirm the authorized registry account and publishing destination.
-   The current `0.1.0` metadata is a development candidate, not an existing release.
+   Choose a new version; registry uploads cannot replace an existing release.
 2. Prepare the pinned parser, then build the wheel and sdist in a clean directory.
    Retain upstream licenses and source hashes. Do not commit prepared upstream code.
 3. Run `python -m twine check dist/*`, install the wheel in a clean environment,

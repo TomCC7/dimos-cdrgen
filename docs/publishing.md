@@ -105,7 +105,7 @@ credentials and has no API-token fallback.
    supported targets, and remaining verification blockers. Approve that exact
    version and destination before creating or pushing its tag.
 2. Create the release tag `v<package-version>` on the reviewed commit and push
-   it. For the current metadata, the matching tag is `v0.1.0`. A tag push alone
+   it. For the current metadata, the matching tag is `v0.1.2`. A tag push alone
    does not run this workflow or upload a package.
 3. Open **Run workflow**, select that tag as the workflow ref, and choose
    `testpypi` for an approved TestPyPI upload or `pypi` for an approved PyPI upload.
