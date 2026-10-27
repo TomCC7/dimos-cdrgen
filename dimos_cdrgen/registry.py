@@ -20,6 +20,7 @@ reads schemas only; it must never import the generated value modules recursively
 
 from __future__ import annotations
 
+from dataclasses import fields, is_dataclass
 from hashlib import sha256
 from importlib.metadata import entry_points
 from importlib.util import find_spec
@@ -28,7 +29,10 @@ from pathlib import Path
 import struct
 from threading import RLock
 from types import ModuleType
-from typing import Any, TypeVar, cast, overload
+from typing import Any, TypeVar, cast, get_type_hints, overload
+import typing
+
+import numpy as np
 
 from rosbags.serde.errors import SerdeError
 from rosbags.typesys import Stores, get_types_from_msg, get_typestore
@@ -93,6 +97,22 @@ def _read_packages(
     return result
 
 
+def _resolve_field_annotations(store: Typestore) -> None:
+    """Bind Python field annotations to the same classes used by the codec."""
+    namespace = {
+        **vars(typing),
+        "np": np,
+        **{name.replace("/", "__"): value for name, value in store.types.items()},
+    }
+    for value in store.types.values():
+        if not is_dataclass(value):
+            raise TypeError(f"Registered message is not a dataclass: {value}")
+        annotations = get_type_hints(value, globalns=namespace)
+        value.__annotations__.update(annotations)
+        for field in fields(value):
+            field.type = annotations[field.name]
+
+
 def initialize(roots: tuple[Path, ...] = (), *, discover: bool = True) -> Typestore:
     """Register the complete installed closure once; reject later mutations."""
     global _store
@@ -111,6 +131,7 @@ def initialize(roots: tuple[Path, ...] = (), *, discover: bool = True) -> Typest
                 definitions.update(get_types_from_msg(text, name))
         store = get_typestore(Stores.EMPTY)
         store.register(definitions)
+        _resolve_field_annotations(store)
         _packages.update({module: manifest for module, (manifest, _) in packages.items()})
         for manifest, schemas in packages.values():
             _schemas.update(schemas)

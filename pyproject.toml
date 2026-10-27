@@ -19,7 +19,7 @@ dimos-cdrgen = "dimos_cdrgen.source_package:main"
 [project.optional-dependencies]
 prepare = ["requests>=2.31"]
 native = ["pip", "catkin-pkg==1.1.0", "PyYAML==6.0.2"]
-test = ["pytest>=8", "pytest-mock", "mypy==1.19.0", "types-setuptools", "types-requests", "requests>=2.31", "build", "numpy>=1.26.4"]
+test = ["pytest>=8", "pytest-mock", "mypy==1.19.0", "types-setuptools", "types-requests", "requests>=2.31", "build", "numpy>=1.26.4", "pydantic>=2,<3"]
 
 [tool.setuptools]
 packages = ["dimos_cdrgen", "rosidl_adapter", "rosidl_adapter.msg", "rosidl_adapter.srv", "rosidl_adapter.action", "rosidl_adapter.resource"]
